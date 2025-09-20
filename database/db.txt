@@ -1,0 +1,25 @@
+CREATE DATABASE IF NOT EXISTS VMS;
+USE VMS;
+
+-- Create customers table without keys
+CREATE TABLE IF NOT EXISTS customers (
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255),
+    phone VARCHAR(20),
+    address VARCHAR(255),
+    city VARCHAR(50),
+    state VARCHAR(50),
+    zip_code VARCHAR(10),
+    profile_image VARCHAR(255),  -- store image file path or URL
+    date_of_birth DATE,
+    gender ENUM('Male', 'Female', 'Other'),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO customers (full_name, email, password)
+VALUES
+('User1', 'user1@gmail.com', 'user1'),
+('User2', 'user2@gmail.com', 'user2'),
+('User3', 'user3@gmail.com', 'user3');
