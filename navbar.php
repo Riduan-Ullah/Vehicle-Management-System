@@ -36,7 +36,7 @@
 
                 <!-- Desktop Navigation Links (Center) -->
                 <div class="hidden md:flex items-center justify-center space-x-1">
-                    <a href="#" class="px-3 py-2 rounded-md text-sm font-medium text-secondary hover:text-primary hover:bg-blue-50 transition duration-200">
+                    <a href="index.php" class="px-3 py-2 rounded-md text-sm font-medium text-secondary hover:text-primary hover:bg-blue-50 transition duration-200">
                         <i class="fas fa-home mr-1"></i> Home
                     </a>
                     
@@ -109,7 +109,7 @@
                         </button>
                         <div class="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300">
                             <div class="py-1">
-                                <a href="#" class="block px-4 py-2 text-sm text-secondary hover:bg-blue-50 hover:text-primary">
+                                <a href="profile.php" class="block px-4 py-2 text-sm text-secondary hover:bg-blue-50 hover:text-primary">
                                     <i class="fas fa-user mr-2"></i> Profile
                                 </a>
                                 <a href="#" class="block px-4 py-2 text-sm text-secondary hover:bg-blue-50 hover:text-primary">
@@ -135,7 +135,7 @@
         <!-- Mobile Menu (Hidden by default) -->
         <div id="mobile-menu" class="md:hidden hidden">
             <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t">
-                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-secondary hover:text-primary hover:bg-blue-50">
+                <a href="index.php" class="block px-3 py-2 rounded-md text-base font-medium text-secondary hover:text-primary hover:bg-blue-50">
                     <i class="fas fa-home mr-2"></i> Home
                 </a>
                 
@@ -185,7 +185,7 @@
                     <i class="fas fa-credit-card mr-2"></i> Payments
                 </a>
                 
-                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-secondary hover:text-primary hover:bg-blue-50">
+                <a href="profile.php" class="block px-3 py-2 rounded-md text-base font-medium text-secondary hover:text-primary hover:bg-blue-50">
                     <i class="fas fa-user mr-2"></i> Profile
                 </a>
                 
