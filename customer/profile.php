@@ -1,9 +1,144 @@
+<?php
+session_start();
+require_once '../config/db_connection.php';
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit();
+}
+
+// Initialize variables
+$success_message = '';
+$error_message = '';
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $user_id = $_SESSION['user_id'];
+    
+    // Get form data and sanitize
+    $full_name = trim($_POST['full_name'] ?? '');
+    $phone = trim($_POST['phone'] ?? '');
+    $address = trim($_POST['address'] ?? '');
+    $city = trim($_POST['city'] ?? '');
+    $state = trim($_POST['state'] ?? '');
+    $zip_code = trim($_POST['zip_code'] ?? '');
+    $date_of_birth = trim($_POST['date_of_birth'] ?? '');
+    $gender = trim($_POST['gender'] ?? '');
+
+    // Validate required fields
+    if (empty($full_name)) {
+        $error_message = 'Full name is required.';
+    } elseif (strlen($full_name) < 2) {
+        $error_message = 'Full name must be at least 2 characters long.';
+    } else {
+        // Handle profile picture upload
+        $profile_pic_path = null;
+        
+        if (isset($_FILES['profile_pic']) && $_FILES['profile_pic']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['profile_pic'];
+            
+            // Validate file type
+            $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+            $file_type = mime_content_type($file['tmp_name']);
+            
+            if (!in_array($file_type, $allowed_types)) {
+                $error_message = 'Invalid file type. Only JPG, PNG, and GIF are allowed.';
+            } elseif ($file['size'] > 2 * 1024 * 1024) { // 2MB max
+                $error_message = 'File size must be less than 2MB.';
+            } else {
+                // Generate unique filename
+                $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $filename = 'profile_' . $user_id . '_' . time() . '.' . $file_extension;
+                $upload_dir = '../uploads/profiles/';
+                
+                // Create upload directory if it doesn't exist
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0755, true);
+                }
+                
+                $profile_pic_path = $upload_dir . $filename;
+                
+                // Move uploaded file
+                if (!move_uploaded_file($file['tmp_name'], $profile_pic_path)) {
+                    $error_message = 'Failed to upload profile picture.';
+                    $profile_pic_path = null;
+                }
+            }
+        }
+
+        if (empty($error_message)) {
+            try {
+                // Update customer data in database
+                if ($profile_pic_path) {
+                   $sql = "UPDATE customers SET 
+            full_name = ?, 
+            phone = ?, 
+            address = ?, 
+            city = ?, 
+            state = ?, 
+            zip_code = ?, 
+            date_of_birth = ?, 
+            gender = ?, 
+            profile_image = ?
+            WHERE user_id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("sssssssssi", $full_name, $phone, $address, $city, $state, $zip_code, $date_of_birth, $gender, $profile_pic_path, $user_id);
+} else {
+    $sql = "UPDATE customers SET 
+            full_name = ?, 
+            phone = ?, 
+            address = ?, 
+            city = ?, 
+            state = ?, 
+            zip_code = ?, 
+            date_of_birth = ?, 
+            gender = ?
+            WHERE user_id = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ssssssssi", $full_name, $phone, $address, $city, $state, $zip_code, $date_of_birth, $gender, $user_id);
+}
+                
+                if ($stmt->execute()) {
+                    $success_message = 'Profile updated successfully!';
+                    // Update session data if needed
+                    $_SESSION['full_name'] = $full_name;
+                } else {
+                    $error_message = 'Failed to update profile. Please try again.';
+                }
+                
+                $stmt->close();
+                
+            } catch (Exception $e) {
+                $error_message = 'Database error: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
+// Fetch customer data from database (always fetch fresh data after update)
+$user_id = $_SESSION['user_id'];
+$sql = "SELECT * FROM customers WHERE user_id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$customer = $result->fetch_assoc();
+$stmt->close();
+
+// If customer not found, redirect to login
+if (!$customer) {
+    header('Location: login.php');
+    exit();
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Profile</title>
+    <title>Customer Profile - <?php echo htmlspecialchars($customer['full_name'] ?? 'User'); ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -62,7 +197,7 @@
             display: block;
         }
         
-        .profile-form input {
+        .profile-form input, .profile-form select {
             background: #333;
             color: #fff;
             border: 2px solid transparent;
@@ -73,7 +208,7 @@
             transition: all 0.3s ease;
         }
         
-        .profile-form input:focus {
+        .profile-form input:focus, .profile-form select:focus {
             outline: none;
             border-color: #38bdf8;
             box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.3);
@@ -171,6 +306,23 @@
             display: none;
         }
         
+        .welcome-message {
+            color: #fff;
+            font-size: 1.2rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .alert-error {
+            background: #ef4444;
+            color: white;
+        }
+        
         @media (max-width: 900px) {
             .profile-container {
                 gap: 2rem;
@@ -200,6 +352,29 @@
     </style>
 </head>
 <body>
+    <!-- Success/Error Messages -->
+    <?php if (!empty($success_message)): ?>
+        <div class="fixed top-20 left-1/2 transform -translate-x-1/2 alert-success px-6 py-3 rounded-lg shadow-lg z-50">
+            <?php echo $success_message; ?>
+        </div>
+        <script>
+            setTimeout(() => {
+                document.querySelector('.fixed.alert-success').remove();
+            }, 5000);
+        </script>
+    <?php endif; ?>
+
+    <?php if (!empty($error_message)): ?>
+        <div class="fixed top-20 left-1/2 transform -translate-x-1/2 alert-error px-6 py-3 rounded-lg shadow-lg z-50">
+            <?php echo $error_message; ?>
+        </div>
+        <script>
+            setTimeout(() => {
+                document.querySelector('.fixed.alert-error').remove();
+            }, 5000);
+        </script>
+    <?php endif; ?>
+
     <nav class="fixed top-0 left-0 w-full z-50 bg-white shadow">
         <!-- navbar content -->
         <?php
@@ -212,8 +387,11 @@
     <div class="profile-container">
         <!-- Profile Picture -->
         <div class="profile-pic-box">
-            <img src="https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png" 
-                 alt="Profile Picture" class="profile-pic" id="profilePreview">
+            <div class="welcome-message">
+                Welcome, <strong><?php echo htmlspecialchars($customer['full_name'] ?? 'User'); ?></strong>!
+            </div>
+            <img src="<?php echo !empty($customer['profile_image']) ? htmlspecialchars($customer['profile_image']) : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'; ?>" 
+     alt="Profile Picture" class="profile-pic" id="profilePreview">
             <button type="button" class="btn btn-blue upload-btn w-full mb-3" onclick="document.getElementById('profilePicInput').click();">
                 Change Profile Picture
             </button>
@@ -224,41 +402,78 @@
         <!-- Profile Form -->
         <div class="profile-form-box">
             <h2 class="form-header">Edit Your Profile</h2>
-            <form method="POST" enctype="multipart/form-data" class="profile-form" id="profileForm">
+            <form method="POST" action="" enctype="multipart/form-data" class="profile-form" id="profileForm">
                 <input type="file" name="profile_pic" accept="image/jpeg, image/png, image/gif" 
                        id="profilePicInput" style="display:none;" onchange="validateImage(this)">
                 
                 <div class="form-row">
-                    <label for="username">Username:</label>
-                    <input type="text" name="username" id="username" value="demo_user" required>
-                    <p id="usernameError" class="error-message"></p>
-                </div>
-                
-                <div class="form-row">
-                    <label for="fullname">Full Name:</label>
-                    <input type="text" name="fullname" id="fullname" value="John Doe" required>
+                    <label for="full_name">Full Name:</label>
+                    <input type="text" name="full_name" id="full_name" 
+                           value="<?php echo htmlspecialchars($customer['full_name'] ?? ''); ?>" required>
                     <p id="fullnameError" class="error-message"></p>
                 </div>
                 
                 <div class="form-row">
-                    <label for="address">Address:</label>
-                    <input type="text" name="address" id="address" value="123 Street">
-                </div>
-                
-                <div class="form-row">
-                    <label for="contact">Contact No:</label>
-                    <input type="tel" name="contact" id="contact" value="+880123456789" pattern="[+]{1}[0-9]{11,14}">
-                    <p id="contactError" class="error-message"></p>
-                </div>
-                
-                <div class="form-row">
                     <label for="email">Email:</label>
-                    <input type="email" name="email" id="email" value="demo@example.com" required>
+                    <input type="email" name="email" id="email" 
+                           value="<?php echo htmlspecialchars($customer['email'] ?? ''); ?>" required readonly>
+                    <p class="text-gray-400 text-sm mt-1">Email cannot be changed</p>
                     <p id="emailError" class="error-message"></p>
                 </div>
                 
+                <div class="form-row">
+                    <label for="phone">Contact No:</label>
+                    <input type="tel" name="phone" id="phone" 
+                           value="<?php echo htmlspecialchars($customer['phone'] ?? ''); ?>" 
+                           placeholder="Enter your phone number">
+                    <p id="phoneError" class="error-message"></p>
+                </div>
+                
+                <div class="form-row">
+                    <label for="address">Address:</label>
+                    <input type="text" name="address" id="address" 
+                           value="<?php echo htmlspecialchars($customer['address'] ?? ''); ?>" 
+                           placeholder="Enter your address">
+                </div>
+                
+                <div class="form-row">
+                    <label for="city">City:</label>
+                    <input type="text" name="city" id="city" 
+                           value="<?php echo htmlspecialchars($customer['city'] ?? ''); ?>" 
+                           placeholder="Enter your city">
+                </div>
+                
+                <div class="form-row">
+                    <label for="state">State:</label>
+                    <input type="text" name="state" id="state" 
+                           value="<?php echo htmlspecialchars($customer['state'] ?? ''); ?>" 
+                           placeholder="Enter your state">
+                </div>
+                
+                <div class="form-row">
+                    <label for="zip_code">Zip Code:</label>
+                    <input type="text" name="zip_code" id="zip_code" 
+                           value="<?php echo htmlspecialchars($customer['zip_code'] ?? ''); ?>" 
+                           placeholder="Enter your zip code">
+                </div>
+                
+                <div class="form-row">
+                    <label for="date_of_birth">Date of Birth:</label>
+                    <input type="date" name="date_of_birth" id="date_of_birth" 
+                           value="<?php echo htmlspecialchars($customer['date_of_birth'] ?? ''); ?>">
+                </div>
+                
+                <div class="form-row">
+                    <label for="gender">Gender:</label>
+                    <select name="gender" id="gender">
+                        <option value="">Select Gender</option>
+                        <option value="Male" <?php echo ($customer['gender'] ?? '') === 'Male' ? 'selected' : ''; ?>>Male</option>
+                        <option value="Female" <?php echo ($customer['gender'] ?? '') === 'Female' ? 'selected' : ''; ?>>Female</option>
+                    </select>
+                </div>
+                
                 <div class="form-actions">
-                    <button type="button" class="btn btn-outline">Cancel</button>
+                    <button type="button" class="btn btn-outline" onclick="window.history.back()">Cancel</button>
                     <button type="submit" class="btn btn-red">Update Profile</button>
                 </div>
             </form>
@@ -316,18 +531,8 @@
     document.getElementById('profileForm').addEventListener('submit', function(e) {
         let isValid = true;
         
-        // Validate username
-        const username = document.getElementById('username');
-        if (username.value.trim().length < 3) {
-            document.getElementById('usernameError').textContent = 'Username must be at least 3 characters long.';
-            document.getElementById('usernameError').style.display = 'block';
-            isValid = false;
-        } else {
-            document.getElementById('usernameError').style.display = 'none';
-        }
-        
-        // Validate fullname
-        const fullname = document.getElementById('fullname');
+        // Validate full name
+        const fullname = document.getElementById('full_name');
         if (fullname.value.trim().length < 2) {
             document.getElementById('fullnameError').textContent = 'Please enter your full name.';
             document.getElementById('fullnameError').style.display = 'block';
@@ -336,15 +541,14 @@
             document.getElementById('fullnameError').style.display = 'none';
         }
         
-        // Validate email
-        const email = document.getElementById('email');
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailPattern.test(email.value)) {
-            document.getElementById('emailError').textContent = 'Please enter a valid email address.';
-            document.getElementById('emailError').style.display = 'block';
+        // Validate phone (if provided)
+        const phone = document.getElementById('phone');
+        if (phone.value.trim() !== '' && !/^[\+]?[0-9\s\-\(\)]{10,}$/.test(phone.value)) {
+            document.getElementById('phoneError').textContent = 'Please enter a valid phone number.';
+            document.getElementById('phoneError').style.display = 'block';
             isValid = false;
         } else {
-            document.getElementById('emailError').style.display = 'none';
+            document.getElementById('phoneError').style.display = 'none';
         }
         
         if (!isValid) {

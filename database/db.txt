@@ -1,8 +1,9 @@
 CREATE DATABASE IF NOT EXISTS VMS;
 USE VMS;
 
--- Create customers table without keys
+-- Create customers table with user_id as primary key
 CREATE TABLE IF NOT EXISTS customers (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,  -- added user_id
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255),
@@ -18,8 +19,248 @@ CREATE TABLE IF NOT EXISTS customers (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- Insert sample users
 INSERT INTO customers (full_name, email, password)
 VALUES
 ('User1', 'user1@gmail.com', 'user1'),
 ('User2', 'user2@gmail.com', 'user2'),
 ('User3', 'user3@gmail.com', 'user3');
+
+
+CREATE TABLE cars (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price_per_day DECIMAL(10, 2) NOT NULL,
+    image_url VARCHAR(255),
+    seats INT NOT NULL,
+    transmission ENUM('Automatic', 'Manual') NOT NULL,
+    fuel_type ENUM('Petrol', 'Diesel', 'Electric', 'Hybrid', 'CNG') NOT NULL,
+    brand VARCHAR(50),
+    model_year YEAR,
+    quantity INT NOT NULL DEFAULT 1, -- number of cars of this model
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+
+INSERT INTO cars (name, description, price_per_day, image_url, seats, transmission, fuel_type, brand, model_year, quantity) 
+VALUES 
+('Audi Q7', 'Luxury SUV with premium features', 89.00, 'resources/car/audi_q7.jpg', 7, 'Automatic', 'Petrol', 'Audi', 2023, 3),
+('BMW X5', 'Premium SUV with sporty design', 95.00, 'resources/car/bmw_x5.jpg', 5, 'Automatic', 'Petrol', 'BMW', 2023, 2),
+('Porsche 911', 'Sports car with exceptional performance', 149.00, 'resources/car/porsche_911.jpg', 2, 'Automatic', 'Petrol', 'Porsche', 2023, 1),
+('Toyota Camry', 'Reliable sedan with great fuel economy', 45.00, 'resources/car/toyota_camry.jpg', 5, 'Automatic', 'Hybrid', 'Toyota', 2023, 5),
+('Jeep Wrangler', 'Off-road capable adventure vehicle', 75.00, 'resources/car/jeep_wrangler.jpg', 5, 'Manual', 'Petrol', 'Jeep', 2023, 2),
+('Tesla Model 3', 'Electric car with autopilot features', 99.00, 'resources/car/tesla_3.jpg', 5, 'Automatic', 'Electric', 'Tesla', 2023, 4);
+
+
+CREATE TABLE carts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,          -- who owns this cart
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE cart_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cart_id INT NOT NULL,
+    item_type ENUM('car','service','part' 'course') NOT NULL,
+    item_id INT NOT NULL,             -- id in the type-specific table
+    unit_price DECIMAL(10,2) NOT NULL DEFAULT 0.00, -- price recorded at add-to-cart
+    quantity INT NOT NULL DEFAULT 1,
+    rental_start DATE DEFAULT NULL,
+    rental_end DATE DEFAULT NULL,
+    meta JSON DEFAULT NULL,           -- extra per-item options
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX (cart_id),
+    INDEX (item_type, item_id),
+    FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
+);
+
+
+-- create a cart for user_id = 1 and store its id
+INSERT INTO carts (user_id) VALUES (1);
+SET @cart_id = LAST_INSERT_ID();
+
+-- get car prices into variables (so we can reuse in multi-row VALUES)
+SELECT price_per_day INTO @price_car1 FROM cars WHERE id = 1; -- Audi Q7
+SELECT price_per_day INTO @price_car4 FROM cars WHERE id = 4; -- Toyota Camry
+
+-- 2 car rentals (each quantity = 1, with rental date ranges and a delivery_place in meta)
+INSERT INTO cart_items (cart_id, item_type, item_id, unit_price, quantity, rental_start, rental_end, meta)
+VALUES
+(@cart_id, 'car', 1, @price_car1, 1, '2025-10-01', '2025-10-05', JSON_OBJECT('delivery_place','Dhaka')),
+(@cart_id, 'car', 4, @price_car4, 1, '2025-10-10', '2025-10-12', JSON_OBJECT('delivery_place','Chittagong'));
+
+-- 3 service items (use item_id = 1..3 as placeholders; set unit_price explicitly;
+-- store service_date and service_location in meta)
+INSERT INTO cart_items (cart_id, item_type, item_id, unit_price, quantity, meta)
+VALUES
+(@cart_id, 'service', 1, 1200.00, 1, JSON_OBJECT('service_date','2025-10-02','service_location','Dhaka Service Center')),
+(@cart_id, 'service', 2, 800.00, 1,  JSON_OBJECT('service_date','2025-10-03','service_location','Dhaka Service Center')),
+(@cart_id, 'service', 3, 500.00, 1,  JSON_OBJECT('service_date','2025-10-04','service_location','Dhaka Service Center'));
+
+-- 4 part items (placeholder item_id = 1..4; different quantities)
+INSERT INTO cart_items (cart_id, item_type, item_id, unit_price, quantity, meta)
+VALUES
+(@cart_id, 'part', 1, 850.00, 2, JSON_OBJECT('sku','TOY-OF-2023')),
+(@cart_id, 'part', 2, 300.00, 1, JSON_OBJECT('sku','BRAKE-PAD-01')),
+(@cart_id, 'part', 3, 1200.00, 3, JSON_OBJECT('sku','BATTERY-12V')),
+(@cart_id, 'part', 4, 400.00, 1, JSON_OBJECT('sku','AIR-FILTER-XL'));
+
+
+
+
+
+CREATE TABLE parts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    image_url VARCHAR(255),
+    sku VARCHAR(50) UNIQUE NOT NULL,
+    category VARCHAR(50),
+    stock_quantity INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+
+
+INSERT INTO parts (name, description, price, image_url, sku, category, stock_quantity) VALUES
+('Brake Pad Set', 'High-quality ceramic brake pads for smooth braking', 3500.00, 'resources/part/brake_pad.jpg', 'SKU001', 'Brakes', 25),
+('Car Battery', '12V maintenance-free battery suitable for most cars', 7500.00, 'resources/part/car_battery.jpg', 'SKU002', 'Battery', 15),
+('Air Filter', 'Durable air filter for cleaner engine performance', 1200.00, 'resources/part/air_filter.jpg', 'SKU003', 'Filter', 40),
+('Engine Oil 5L', 'Premium synthetic engine oil for long-lasting performance', 4200.00, 'resources/part/engine_oil.jpg', 'SKU004', 'Oil', 30),
+('Headlight Bulb', 'LED headlight bulb with long lifespan and bright light', 1800.00, 'resources/part/headlight_bulb.jpg', 'SKU005', 'Lighting', 50),
+('Radiator', 'Heavy-duty radiator for optimal cooling system performance', 9500.00, 'resources/part/radiator.jpg', 'SKU006', 'Cooling', 10),
+('Spark Plug', 'Platinum spark plug for fuel efficiency and smooth ignition', 600.00, 'resources/part/spark_plug.jpg', 'SKU007', 'Ignition', 60),
+('Clutch Plate', 'Durable clutch plate for smooth gear shifting', 6700.00, 'resources/part/clutch_plate.jpg', 'SKU008', 'Transmission', 20),
+('Shock Absorber', 'Front shock absorber for improved ride comfort and stability', 8200.00, 'resources/part/shock_absorber.jpg', 'SKU009', 'Suspension', 12);
+
+
+-- Create a single services table
+CREATE TABLE services (
+    sid INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    service_type VARCHAR(50) NOT NULL, -- 'car_wash', 'maintenance', 'customization'
+    vehicle_type VARCHAR(50),
+    price DECIMAL(10,2),
+    picture VARCHAR(255)
+);
+
+-- Insert customization services
+INSERT INTO services (name, description, service_type, vehicle_type, price, picture) VALUES
+('Alloy Wheels Upgrade', 'Stylish alloy wheels for enhanced look and performance', 'customization', 'Car/SUV', 15000.00, 'alloy_wheels.jpg'),
+('Custom Paint', 'Premium paint job with unique color options', 'customization', 'Car/Bike', 12000.00, 'custom_paint.jpg'),
+('Leather Seat Covers', 'High-quality leather seat covers for comfort and style', 'customization', 'Car', 8000.00, 'leather_seats.jpg'),
+('LED Headlights', 'Upgrade to bright and efficient LED headlights', 'customization', 'Car/Bike', 5000.00, 'led_headlights.jpg'),
+('Exhaust Upgrade', 'Performance exhaust system for better sound and power', 'customization', 'Car/Bike', 10000.00, 'exhaust_upgrade.jpg'),
+('Sound System Upgrade', 'Premium audio system with subwoofers and amplifiers', 'customization', 'Car/SUV', 18000.00, 'sound_system.jpg');
+
+-- Insert maintenance services
+INSERT INTO services (name, description, service_type, vehicle_type, price, picture) VALUES
+('Oil Change', 'Replace old engine oil with premium synthetic oil', 'maintenance', 'Car', 2500.00, 'oil_change.jpg'),
+('Brake Service', 'Inspection and replacement of brake pads if needed', 'maintenance', 'Car', 4000.00, 'brake_service.jpg'),
+('Engine Tune-Up', 'Engine diagnostic and performance tuning', 'maintenance', 'Car/SUV', 6000.00, 'engine_tuneup.jpg'),
+('Chain Lubrication', 'Chain cleaning and lubrication for smooth ride', 'maintenance', 'Bike', 800.00, 'chain_lubrication.jpg'),
+('Battery Check', 'Check and recharge/replace vehicle battery', 'maintenance', 'Car/Bike', 1500.00, 'battery_check.jpg'),
+('Tire Rotation', 'Rotation of tires for even wear and longer life', 'maintenance', 'Car/SUV', 1800.00, 'tire_rotation.jpg');
+
+-- Insert car wash services
+INSERT INTO services (name, description, service_type, vehicle_type, price, picture) VALUES
+('Basic Wash', 'Quick exterior wash for everyday cleaning', 'car_wash', 'Car', 500, 'basic_wash.jpg'),
+('Deluxe Wash', 'Thorough wash with added interior cleaning', 'car_wash', 'Car', 1200, 'deluxe_wash.jpg'),
+('Premium Wash', 'Full-service wash with wax protection', 'car_wash', 'Car', 2000, 'premium_wash.jpg'),
+('SUV Deep Clean', 'Special wash package for SUVs and larger vehicles', 'car_wash', 'SUV', 3000, 'suv_deep_clean.jpg'),
+('Bike Shine', 'Special package for motorbikes with polish finish', 'car_wash', 'Motorbike', 700, 'bike_shine.jpg'),
+('Luxury Detailing', 'High-end detailing service with complete care', 'car_wash', 'Car/SUV', 5000, 'luxury_detailing.jpg');
+
+
+
+CREATE TABLE driving_course (
+    dcid INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    level VARCHAR(50),
+    duration VARCHAR(50),
+    vehicle_type VARCHAR(50),
+    price DECIMAL(10,2),
+    picture VARCHAR(255)
+);
+
+-- Insert data
+INSERT INTO driving_course (name, description, level, duration, vehicle_type, price, picture) VALUES
+('Beginner Driving Course', 'Covers basic car handling, road rules, and safety practices.', 'Beginner', '15 days', 'Car', 8000.00, '../resources/course/beginner_course.jpg'),
+('Intermediate Driving Course', 'Focus on highway driving, overtaking, and night driving.', 'Intermediate', '20 days', 'Car', 12000.00, '../resources/course/intermediate_course.jpg'),
+('Advanced Driving Course', 'Teaches advanced maneuvers, defensive driving, and emergency handling.', 'Advanced', '25 days', 'Car/SUV', 18000.00, '../resources/course/advanced_course.jpg'),
+('Bike Riding Course', 'Training on safe motorcycle handling, balancing, and traffic rules.', 'Beginner', '10 days', 'Bike', 6000.00, '../resources/course/bike_course.jpg'),
+('SUV Handling Course', 'Specialized training for handling larger vehicles like SUVs.', 'Intermediate', '18 days', 'SUV', 15000.00, '../resources/course/suv_course.jpg'),
+('Professional Driver Course', 'Complete professional training with theory, practice, and licensing prep.', 'Advanced', '30 days', 'Car/SUV', 25000.00, '../resources/course/pro_driver.jpg');
+
+
+
+CREATE TABLE orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    order_number VARCHAR(50) UNIQUE NOT NULL,  -- Essential for invoices
+    
+    -- Order totals (CRITICAL for billing)
+    subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    
+    -- Payment status
+    paid_status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',
+    
+    -- Customer information (minimum for invoice)
+    customer_name VARCHAR(100) NOT NULL,
+    customer_email VARCHAR(100) NOT NULL,
+    customer_phone VARCHAR(20),
+    customer_address TEXT,
+    
+    -- Timestamps
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paid_date TIMESTAMP NULL DEFAULT NULL,
+    
+    -- Indexes
+    INDEX idx_order_number (order_number),
+    INDEX idx_order_date (order_date),
+    INDEX idx_paid_status (paid_status)
+);
+
+-- SEPARATE table for order items (supports multiple items)
+CREATE TABLE order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    item_type ENUM('car', 'service', 'part', 'course') NOT NULL,
+    item_id INT NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    
+    -- Rental specific fields
+    rental_start DATE DEFAULT NULL,
+    rental_end DATE DEFAULT NULL,
+    location VARCHAR(255) DEFAULT NULL,
+    
+    -- Snapshot of item details at time of order
+    specifications JSON,
+    
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    INDEX idx_order_id (order_id)
+);
+
+
+
+CREATE TABLE IF NOT EXISTS wishlist (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    item_type ENUM('car', 'service', 'driving_course', 'part') NOT NULL,
+    item_id INT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES customers (user_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_item (user_id, item_type, item_id)
+);
